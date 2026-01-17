@@ -1,46 +1,52 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'dart:io';
+import 'package:grpc/grpc.dart';
+import 'generated/api.pbgrpc.dart';
 
-const String AI_FUNCTION_URL = 
-    'https://functions.yandexcloud.net/d4eblqs7ri9qtbvogojq';
+Future<void> main() async {
+  print('🚀 gRPC CLI Клиент для получения метрик пульса');
+  print('=' * 60);
 
-void main() async {
-  print('🚀 AI Health Analyzer\n');
-  
-  // Тестовые данные пациента
-  final healthData = {
-    'patient_name': 'Сергей Иванов',
-    'age': 35,
-    'heart_rate': 85,
-    'blood_pressure_systolic': 135,
-    'blood_pressure_diastolic': 88,
-    'temperature': 36.8,
-    'blood_oxygen': 96,
-  };
-  
-  // Отправляем запрос
-  final response = await http.post(
-    Uri.parse(AI_FUNCTION_URL),
-    headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({'health_data': healthData}),
+  final channel = ClientChannel(
+    'localhost',
+    port: 8143,
+    options: ChannelOptions(
+      credentials: ChannelCredentials.secure(
+        onBadCertificate: (X509Certificate cert, String host) => true,
+      ),
+    ),
   );
-  
-  // Обрабатываем ответ
-  if (response.statusCode == 200) {
-    final result = jsonDecode(response.body);
-    
-    if (result['success'] == true) {
-      print('✅ Анализ успешен!');
-      print('\n' + '=' * 40);
-      print('🤖 AI АНАЛИЗ:');
-      print('=' * 40);
-      print(result['analysis']);
-      print('=' * 40);
-    } else {
-      print('❌ Ошибка: ${result['error']}');
+
+  final client = MetricsClient(channel);
+
+  try {
+    print('📡 Подключение к серверу на localhost:8143...\n');
+
+    // Создаем запрос
+    final request = Empty();
+
+    // Получаем stream метрик
+    final stream = client.getStats(request);
+
+    print('✅ Подключено! Получение данных...\n');
+    print('-' * 60);
+
+    // Обрабатываем поток данных
+    await for (final metric in stream) {
+      final timestamp = DateTime.now().toLocal().toString().split('.')[0];
+      print(
+        '👤 ${metric.userName.padRight(15)} | '
+        '❤️  ${metric.heartRate.toString().padLeft(3)} bpm | '
+        '🕐 $timestamp',
+      );
     }
-  } else {
-    print('❌ HTTP ошибка: ${response.statusCode}');
-    print('Тело ответа: ${response.body}');
+  } on GrpcError catch (e) {
+    print('❌ Ошибка gRPC: ${e.message}');
+    print('Код: ${e.code}');
+  } catch (e) {
+    print('❌ Ошибка: $e');
+  } finally {
+    await channel.shutdown();
+    print('\n' + '-' * 60);
+    print('🔌 Соединение закрыто');
   }
 }
