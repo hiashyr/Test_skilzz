@@ -1,71 +1,46 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-const String YC_FUNCTION_URL = 
+const String AI_FUNCTION_URL = 
     'https://functions.yandexcloud.net/d4eblqs7ri9qtbvogojq';
 
 void main() async {
-  print('🧪 ТЕСТ ВЗАИМОДЕЙСТВИЯ DART ↔ YANDEX CLOUD');
-  print('=' * 50);
+  print('🚀 AI Health Analyzer\n');
   
-  // Тест 1: Простая строка
-  await runTest('Hello from Dart!');
+  // Тестовые данные пациента
+  final healthData = {
+    'patient_name': 'Сергей Иванов',
+    'age': 35,
+    'heart_rate': 85,
+    'blood_pressure_systolic': 135,
+    'blood_pressure_diastolic': 88,
+    'temperature': 36.8,
+    'blood_oxygen': 96,
+  };
   
-  // Тест 2: Числа
-  await runTest('12345');
-  
-  // Тест 3: Русский текст
-  await runTest('Привет из Дарта!');
-  
-  // Тест 4: Пустая строка
-  await runTest('');
-  
-  // Тест 5: Специальные символы
-  await runTest('Test@2024#Cloud');
-}
-
-Future<void> runTest(String testData) async {
-  print('\n📤 Тест: "$testData"');
-  print('─' * 30);
-  
-  try {
-    final result = await callYandexFunction(testData);
-    
-    if (result['success'] == true) {
-      print('✅ УСПЕХ!');
-      print('📝 Сообщение: ${result['message']}');
-      print('📊 Данные:');
-      
-      final data = result['data'];
-      print('   • Исходное: ${data['original']}');
-      print('   • Модифицированное: ${data['modified']}');
-      print('   • В верхнем регистре: ${data['uppercase']}');
-      print('   • Длина: ${data['length']}');
-      print('   • Время: ${data['timestamp']}');
-    } else {
-      print('❌ ОШИБКА: ${result['error']}');
-    }
-  } catch (e) {
-    print('❌ ИСКЛЮЧЕНИЕ: $e');
-  }
-}
-
-Future<Map<String, dynamic>> callYandexFunction(String testData) async {
-  final url = Uri.parse(YC_FUNCTION_URL);
-  
-  print('Отправка запроса к Yandex Cloud...');
-  
+  // Отправляем запрос
   final response = await http.post(
-    url,
+    Uri.parse(AI_FUNCTION_URL),
     headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({'test_data': testData}),
+    body: jsonEncode({'health_data': healthData}),
   );
   
-  print('Код ответа: ${response.statusCode}');
-  
+  // Обрабатываем ответ
   if (response.statusCode == 200) {
-    return jsonDecode(response.body);
+    final result = jsonDecode(response.body);
+    
+    if (result['success'] == true) {
+      print('✅ Анализ успешен!');
+      print('\n' + '=' * 40);
+      print('🤖 AI АНАЛИЗ:');
+      print('=' * 40);
+      print(result['analysis']);
+      print('=' * 40);
+    } else {
+      print('❌ Ошибка: ${result['error']}');
+    }
   } else {
-    throw Exception('HTTP ${response.statusCode}: ${response.body}');
+    print('❌ HTTP ошибка: ${response.statusCode}');
+    print('Тело ответа: ${response.body}');
   }
 }
