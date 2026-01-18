@@ -1,52 +1,118 @@
-import 'dart:io';
-import 'package:grpc/grpc.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
 import 'generated/api.pbgrpc.dart';
+import 'sse_stub.dart'
+  if (dart.library.html) 'sse_client_web.dart';
 
-Future<void> main() async {
-  print('🚀 gRPC CLI Клиент для получения метрик пульса');
-  print('=' * 60);
+import 'grpc_stub.dart' if (dart.library.io) 'package:grpc/grpc.dart' as grpc;
 
-  final channel = ClientChannel(
-    'localhost',
-    port: 8143,
-    options: ChannelOptions(
-      credentials: ChannelCredentials.secure(
-        onBadCertificate: (X509Certificate cert, String host) => true,
-      ),
-    ),
-  );
+void main() {
+  runApp(const MyApp());
+}
 
-  final client = MetricsClient(channel);
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
-  try {
-    print('📡 Подключение к серверу на localhost:8143...\n');
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'gRPC Web Metrics',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const MetricsPage(),
+    );
+  }
+}
 
-    // Создаем запрос
-    final request = Empty();
+class MetricsPage extends StatefulWidget {
+  const MetricsPage({super.key});
 
-    // Получаем stream метрик
-    final stream = client.getStats(request);
+  @override
+  State<MetricsPage> createState() => _MetricsPageState();
+}
 
-    print('✅ Подключено! Получение данных...\n');
-    print('-' * 60);
+class _MetricsPageState extends State<MetricsPage> {
+  late final grpc.ClientChannel _channel;
+  late final MetricsClient _client;
+  final List<UserMetric> _metrics = [];
+  Stream<UserMetric>? _stream;
 
-    // Обрабатываем поток данных
-    await for (final metric in stream) {
-      final timestamp = DateTime.now().toLocal().toString().split('.')[0];
-      print(
-        '👤 ${metric.userName.padRight(15)} | '
-        '❤️  ${metric.heartRate.toString().padLeft(3)} bpm | '
-        '🕐 $timestamp',
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      // Use SSE stream for web clients
+      // Connect directly to backend server (dev server runs on 8143)
+      final stream = sseUserMetricStream('https://localhost:8143/metrics/sse');
+      stream.listen((metric) {
+        setState(() {
+          _metrics.insert(0, metric);
+          if (_metrics.length > 100) _metrics.removeLast();
+        });
+      }, onError: (e) {
+        debugPrint('SSE error: $e');
+      });
+    } else {
+      // Fallback: use direct gRPC client on non-web
+      _channel = grpc.ClientChannel(
+        'localhost',
+        port: 8143,
+        options: grpc.ChannelOptions(
+          credentials: grpc.ChannelCredentials.insecure(),
+        ),
       );
+      _client = MetricsClient(_channel as dynamic);
+      _startStream();
     }
-  } on GrpcError catch (e) {
-    print('❌ Ошибка gRPC: ${e.message}');
-    print('Код: ${e.code}');
-  } catch (e) {
-    print('❌ Ошибка: $e');
-  } finally {
-    await channel.shutdown();
-    print('\n' + '-' * 60);
-    print('🔌 Соединение закрыто');
+  }
+
+  void _startStream() {
+    final call = _client.getStats(Empty());
+    _stream = call;
+    _stream!.listen((metric) {
+      setState(() {
+        _metrics.insert(0, metric);
+        if (_metrics.length > 100) _metrics.removeLast();
+      });
+    }, onError: (e) {
+      debugPrint('Stream error: $e');
+    });
+  }
+
+  @override
+  void dispose() {
+    try {
+      _channel.shutdown();
+    } catch (_) {}
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('gRPC Metrics (web)')),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            const Text('Live user heart rate metrics from server'),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _metrics.isEmpty
+                  ? const Center(child: Text('Waiting for data...'))
+                  : ListView.builder(
+                      itemCount: _metrics.length,
+                      itemBuilder: (c, i) {
+                        final m = _metrics[i];
+                        return ListTile(
+                          title: Text(m.userName),
+                          trailing: Text('${m.heartRate} bpm'),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
