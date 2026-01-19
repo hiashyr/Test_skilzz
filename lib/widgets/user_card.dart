@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../generated/api.pbgrpc.dart';
+import '../utils/heart_rate_colors.dart';
 
 class UserCard extends StatelessWidget {
   final UserMetric user;
@@ -40,21 +41,22 @@ class UserCard extends StatelessWidget {
           ),
         ),
         trailing: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
               '${user.heartRate}',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: _getHeartRateColor(user.heartRate, theme),
+                color: HeartRateColors.getColor(user.heartRate),
               ),
             ),
             Text(
               'bpm',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: theme.colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
@@ -65,10 +67,4 @@ class UserCard extends StatelessWidget {
     );
   }
 
-  Color _getHeartRateColor(int heartRate, ThemeData theme) {
-    if (heartRate < 60) return Colors.blue;
-    if (heartRate <= 100) return Colors.green;
-    if (heartRate <= 120) return Colors.orange;
-    return Colors.red;
-  }
 }

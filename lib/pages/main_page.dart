@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/metrics_provider.dart';
-import '../widgets/connection_status_bar.dart';
 import '../widgets/user_card.dart';
 import '../widgets/loading_widget.dart';
 import '../widgets/error_message_widget.dart';
@@ -46,11 +45,6 @@ class DashboardScreen extends StatelessWidget {
 
           return Column(
             children: [
-              // Индикатор статуса подключения
-              ConnectionStatusBar(
-                status: connectionStatus,
-                errorMessage: metricsProvider.errorMessage,
-              ),
               // Список пользователей
               Expanded(
                 child: ListView.builder(

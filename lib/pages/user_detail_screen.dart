@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/metrics_provider.dart';
-import '../widgets/connection_status_bar.dart';
 import '../widgets/error_message_widget.dart';
 import '../widgets/heart_rate_display.dart';
 import '../widgets/theme_toggle_button.dart';
@@ -49,14 +48,6 @@ class UserDetailScreen extends StatelessWidget {
           return SingleChildScrollView(
             child: Column(
               children: [
-                // Индикатор статуса подключения
-                if (showError || connectionStatus == ConnectionStatus.connected)
-                  ConnectionStatusBar(
-                    status: connectionStatus,
-                    errorMessage: showError 
-                        ? 'Showing last known data. Reconnecting...'
-                        : null,
-                  ),
                 Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: Column(

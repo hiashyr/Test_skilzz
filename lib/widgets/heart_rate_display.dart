@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/heart_rate_colors.dart';
 
 class HeartRateDisplay extends StatelessWidget {
   final int heartRate;
@@ -13,7 +14,7 @@ class HeartRateDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _getHeartRateColor(heartRate, theme);
+    final color = HeartRateColors.getColor(heartRate);
     
     return Column(
       children: [
@@ -47,10 +48,4 @@ class HeartRateDisplay extends StatelessWidget {
     );
   }
 
-  Color _getHeartRateColor(int heartRate, ThemeData theme) {
-    if (heartRate < 60) return Colors.blue;
-    if (heartRate <= 100) return Colors.green;
-    if (heartRate <= 120) return Colors.orange;
-    return Colors.red;
-  }
 }
