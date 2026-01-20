@@ -26,113 +26,128 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('User ${widget.userId}'),
-        actions: const [
-          ThemeToggleButton(),
-        ],
-      ),
-      body: Consumer<MetricsProvider>(
-        builder: (context, metricsProvider, child) {
-          final user = metricsProvider.getUser(widget.userId);
-          final connectionStatus = metricsProvider.connectionStatus;
+    return Consumer<MetricsProvider>(
+      builder: (context, metricsProvider, child) {
+        final user = metricsProvider.getUser(widget.userId);
+        final connectionStatus = metricsProvider.connectionStatus;
 
-          // Если пользователь не найден
-          if (user == null) {
-            return ErrorMessageWidget(
+        // Если пользователь не найден
+        if (user == null) {
+          return Scaffold(
+            appBar: AppBar(
+              title: Text('User ${widget.userId}'),
+              actions: const [
+                ThemeToggleButton(),
+              ],
+            ),
+            body: ErrorMessageWidget(
               icon: Icons.person_off,
               message: 'User not found',
               onAction: () => context.go('/'),
               actionLabel: 'Back to Dashboard',
-            );
+            ),
+          );
+        }
+
+        // Если есть ошибка подключения, показываем сообщение, но оставляем данные
+        final showError = connectionStatus == ConnectionStatus.error &&
+            metricsProvider.errorMessage != null;
+
+        // Сохраняем предыдущее значение пульса для следующего обновления
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _previousHeartRate = user.heartRate;
+            });
           }
+        });
 
-          // Если есть ошибка подключения, показываем сообщение, но оставляем данные
-          final showError = connectionStatus == ConnectionStatus.error &&
-              metricsProvider.errorMessage != null;
-
-      // Основной контент страницы пользователя
-      return SingleChildScrollView(
-        child: Column(
-          children: [
-            if (showError)
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: ErrorMessageWidget(
-                  icon: Icons.warning_amber_rounded,
-                  message: metricsProvider.errorMessage!,
-                  onAction: () => metricsProvider.startListening(),
-                  actionLabel: 'Reconnect',
-                ),
+        return Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                title: Text(user.userName.isNotEmpty ? user.userName : 'User ${widget.userId}'),
+                actions: const [
+                  ThemeToggleButton(),
+                ],
+                pinned: true,
+                floating: false,
+                snap: false,
+                forceMaterialTransparency: false,
+                surfaceTintColor: Colors.transparent,
+                backgroundColor: theme.appBarTheme.backgroundColor,
+                elevation: theme.appBarTheme.elevation,
               ),
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 40),
-                  // Анимированное пульсирующее сердце
-                  SizedBox(
-                    width: 200,
-                    height: 200,
-                    child: Center(
-                      child: PulsingHeart(
-                        currentHeartRate: user.heartRate,
-                        previousHeartRate: _previousHeartRate,
-                        size: 120,
-                        color: theme.colorScheme.onPrimaryFixed,
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    if (showError)
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: ErrorMessageWidget(
+                          icon: Icons.warning_amber_rounded,
+                          message: metricsProvider.errorMessage!,
+                          onAction: () => metricsProvider.startListening(),
+                          actionLabel: 'Reconnect',
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 40),
+                          // Анимированное пульсирующее сердце
+                          SizedBox(
+                            width: 250,
+                            height: 250,
+                            child: Center(
+                              child: PulsingHeart(
+                                heartRate: user.heartRate,
+                                previousHeartRate: _previousHeartRate,
+                                // size по умолчанию теперь 180, можно не указывать явно
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 40),
                   // Отображение пульса
                   HeartRateDisplay(
                     heartRate: user.heartRate,
-                    userName: user.userName,
                   ),
-                  const SizedBox(height: 60),
-                  // Заглушка для графика (будет реализовано позже)
-                  Container(
-                    height: 200,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Chart will be here',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
-                        ),
+                          const SizedBox(height: 60),
+                          // Заглушка для графика (будет реализовано позже)
+                          Container(
+                            height: 200,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(),
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Chart will be here',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          ElevatedButton(
+                            onPressed: () => context.go('/'),
+                            child: const Text('Back to Dashboard'),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton(
-                    onPressed: () => context.go('/'),
-                    child: const Text('Back to Dashboard'),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-      );
-
-          // Сохраняем предыдущее значение пульса для следующего обновления
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() {
-                _previousHeartRate = user.heartRate;
-              });
-            }
-          });
-        },
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
