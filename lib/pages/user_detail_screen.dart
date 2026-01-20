@@ -6,6 +6,8 @@ import '../widgets/error_message_widget.dart';
 import '../widgets/heart_rate_display.dart';
 import '../widgets/pulsing_heart.dart';
 import '../widgets/theme_toggle_button.dart';
+import '../widgets/heart_rate_chart.dart';
+import '../utils/heart_rate_colors.dart';
 
 class UserDetailScreen extends StatefulWidget {
   final String userId;
@@ -115,22 +117,33 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                     heartRate: user.heartRate,
                   ),
                           const SizedBox(height: 60),
-                          // Заглушка для графика (будет реализовано позже)
+                          // Кардиограмма пульса
                           Container(
-                            height: 200,
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.surface,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(),
+                              border: Border.all(color: theme.colorScheme.outline),
                             ),
-                            child: Center(
-                              child: Text(
-                                'Chart will be here',
-                                style: TextStyle(
-                                  fontSize: 16,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Cardiogram',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+                                HeartRateChart(
+                                  heartRate: user.heartRate,
+                                  previousHeartRate: _previousHeartRate,
+                                  lineColor: HeartRateColors.getColor(user.heartRate),
+                                  height: 150,
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 32),
