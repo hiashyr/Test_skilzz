@@ -4,6 +4,7 @@ import 'broken_heart_icon.dart';
 class ErrorMessageWidget extends StatelessWidget {
   final String message;
   final String? subtitle;
+  final int? reconnectCountdown;
   final IconData? icon;
   final bool useBrokenHeart;
   final VoidCallback? onAction;
@@ -13,6 +14,7 @@ class ErrorMessageWidget extends StatelessWidget {
     super.key,
     required this.message,
     this.subtitle,
+    this.reconnectCountdown,
     this.icon,
     this.useBrokenHeart = false,
     this.onAction,
@@ -51,14 +53,26 @@ class ErrorMessageWidget extends StatelessWidget {
             ),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
+            Text(
+              subtitle!,
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (reconnectCountdown != null && reconnectCountdown! > 0) ...[
+              const SizedBox(height: 8),
               Text(
-                subtitle!,
+                'Reconnecting in $reconnectCountdown...',
                 style: TextStyle(
                   fontSize: 12,
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
               ),
+            ],
             ],
             if (onAction != null && actionLabel != null) ...[
               const SizedBox(height: 32),

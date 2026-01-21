@@ -33,6 +33,28 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
         final user = metricsProvider.getUser(widget.userId);
         final connectionStatus = metricsProvider.connectionStatus;
 
+        // Если есть ошибка подключения, показываем только сообщение об ошибке
+        if (connectionStatus == ConnectionStatus.error && metricsProvider.errorMessage != null) {
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(user?.userName.isNotEmpty == true ? user!.userName : 'User ${widget.userId}'),
+              actions: const [
+                ThemeToggleButton(),
+              ],
+            ),
+            body: ErrorMessageWidget(
+              icon: Icons.heart_broken_rounded,
+              message: metricsProvider.errorMessage!,
+              subtitle: 'The app will automatically reconnect when the server is available.',
+              reconnectCountdown: metricsProvider.reconnectCountdown > 0
+                  ? metricsProvider.reconnectCountdown
+                  : null,
+              onAction: () => metricsProvider.startListening(),
+              actionLabel: 'Reconnect',
+            ),
+          );
+        }
+
         // Если пользователь не найден
         if (user == null) {
           return Scaffold(
@@ -50,10 +72,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             ),
           );
         }
-
-        // Если есть ошибка подключения, показываем сообщение, но оставляем данные
-        final showError = connectionStatus == ConnectionStatus.error &&
-            metricsProvider.errorMessage != null;
 
         // Сохраняем предыдущее значение пульса для следующего обновления
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -83,16 +101,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
               SliverToBoxAdapter(
                 child: Column(
                   children: [
-                    if (showError)
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: ErrorMessageWidget(
-                          icon: Icons.warning_amber_rounded,
-                          message: metricsProvider.errorMessage!,
-                          onAction: () => metricsProvider.startListening(),
-                          actionLabel: 'Reconnect',
-                        ),
-                      ),
                     Padding(
                       padding: const EdgeInsets.all(24.0),
                       child: Column(
@@ -112,10 +120,10 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                             ),
                           ),
                           const SizedBox(height: 40),
-                  // Отображение пульса
-                  HeartRateDisplay(
-                    heartRate: user.heartRate,
-                  ),
+                          // Отображение пульса
+                          HeartRateDisplay(
+                            heartRate: user.heartRate,
+                          ),
                           const SizedBox(height: 60),
                           // Кардиограмма пульса
                           Container(

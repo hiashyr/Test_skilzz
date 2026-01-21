@@ -24,12 +24,15 @@ class DashboardScreen extends StatelessWidget {
           final connectionStatus = metricsProvider.connectionStatus;
           
           // Если есть ошибка подключения, показываем сообщение
-          if (connectionStatus == ConnectionStatus.error && 
+          if (connectionStatus == ConnectionStatus.error &&
               metricsProvider.errorMessage != null) {
             return ErrorMessageWidget(
               useBrokenHeart: true,
               message: metricsProvider.errorMessage!,
               subtitle: 'The app will automatically reconnect when the server is available.',
+              reconnectCountdown: metricsProvider.reconnectCountdown > 0
+                  ? metricsProvider.reconnectCountdown
+                  : null,
             );
           }
           

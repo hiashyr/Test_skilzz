@@ -20,6 +20,7 @@ class MetricsProvider extends ChangeNotifier {
   // Состояние подключения
   ConnectionStatus _connectionStatus = ConnectionStatus.connecting;
   String? _errorMessage;
+  int _reconnectCountdown = 0; // Счетчик обратного отсчета
   
   // Для gRPC
   dynamic _channel;
@@ -38,6 +39,7 @@ class MetricsProvider extends ChangeNotifier {
   ConnectionStatus get connectionStatus => _connectionStatus;
   String? get errorMessage => _errorMessage;
   bool get isConnected => _connectionStatus == ConnectionStatus.connected;
+  int get reconnectCountdown => _reconnectCountdown;
   
   // Получить метрику конкретного пользователя
   UserMetric? getUser(String userId) => _userMetrics[userId];
@@ -55,7 +57,7 @@ class MetricsProvider extends ChangeNotifier {
     while (!_shouldStop) {
       try {
         _updateConnectionStatus(ConnectionStatus.connecting, null);
-        
+
         if (kIsWeb) {
           await _listenSSEStream();
         } else {
@@ -66,10 +68,20 @@ class MetricsProvider extends ChangeNotifier {
           debugPrint('Connection error: $e');
           _updateConnectionStatus(
             ConnectionStatus.error,
-            'Server connection lost. Reconnecting...',
+            'Server connection lost',
           );
-          // Ждем перед переподключением
-          await Future.delayed(const Duration(seconds: 1));
+
+          // Запускаем обратный отсчет перед следующей попыткой
+          for (int i = 5; i > 0; i--) {
+            if (_shouldStop) break;
+            _updateReconnectCountdown(i);
+            await Future.delayed(const Duration(seconds: 1));
+          }
+
+          // Если не было команды на остановку, продолжаем
+          if (!_shouldStop) {
+            _updateReconnectCountdown(0);
+          }
         }
       }
     }
@@ -89,7 +101,6 @@ class MetricsProvider extends ChangeNotifier {
           return;
         }
         _updateMetric(metric);
-        _updateConnectionStatus(ConnectionStatus.connected, null);
       },
       onError: (error) {
         subscription?.cancel();
@@ -135,23 +146,40 @@ class MetricsProvider extends ChangeNotifier {
     final call = _client!.getStats(Empty());
     _stream = call;
     
-    await for (var metric in _stream!) {
-      if (_shouldStop) break;
-      _updateMetric(metric);
-      _updateConnectionStatus(ConnectionStatus.connected, null);
-    }
+      await for (var metric in _stream!) {
+        if (_shouldStop) break;
+        _updateMetric(metric);
+      }
   }
   
   // Обновление метрики пользователя
   void _updateMetric(UserMetric metric) {
     _userMetrics[metric.userId] = metric;
-    notifyListeners();
+    // После получения данных обновляем статус соединения
+    if (_connectionStatus != ConnectionStatus.connected) {
+      _updateConnectionStatus(ConnectionStatus.connected, null);
+    } else {
+      notifyListeners();
+    }
   }
   
   // Обновление статуса подключения
   void _updateConnectionStatus(ConnectionStatus status, String? error) {
+    // Не сбрасываем статус ошибки, если мы переходим в connected,
+    // но еще не получили данные
+    if (status == ConnectionStatus.connected && !hasData) {
+      return;
+    }
+
     _connectionStatus = status;
     _errorMessage = error;
+    _reconnectCountdown = 0; // Сбрасываем счетчик при изменении статуса
+    notifyListeners();
+  }
+
+  // Обновление счетчика обратного отсчета
+  void _updateReconnectCountdown(int seconds) {
+    _reconnectCountdown = seconds;
     notifyListeners();
   }
   
