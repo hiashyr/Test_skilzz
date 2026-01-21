@@ -23,10 +23,10 @@ class _HeartRateChartState extends State<HeartRateChart>
   late AnimationController _controller;
   final List<double> _points = [];
   int? _lastHeartRate;
-  bool _isInitialized = false;
-  double _offset = 0;
-  double _totalDistance = 0;
   final double _pointSpacing = 3.0; // Расстояние между точками
+  int _pointsPerScreen = 0;
+  double _containerWidth = 0;
+  bool _shouldFillInitialPoints = true;
 
   @override
   void initState() {
@@ -37,40 +37,24 @@ class _HeartRateChartState extends State<HeartRateChart>
     )..repeat();
 
     _lastHeartRate = widget.previousHeartRate;
-    _initializePoints();
 
     _controller.addListener(_onAnimationUpdate);
   }
 
-  void _initializePoints() {
-    // Инициализируем начальными точками (ровная линия)
-    // Нам нужно достаточно точек, чтобы конец линии был в конце видимого блока
-    // Предполагаем, что ширина контейнера ~300px, а расстояние между точками 3px
-    // Значит нужно ~100 точек для заполнения видимой области + запас
-    final pointsNeeded = 150;
-    for (int i = 0; i < pointsNeeded; i++) {
-      _points.add(40); // Базовый уровень
-    }
-
-    // Устанавливаем начальное смещение так, чтобы конец линии был в конце блока
-    // Это гарантирует, что новые скачки будут появляться из конца блока сразу
-    _offset = (pointsNeeded - 100) * _pointSpacing;
-    _isInitialized = true;
-  }
-
   void _onAnimationUpdate() {
-    // Двигаем график слева направо
-    _offset += 1.0;
-    _totalDistance += 1.0;
+    if (_pointsPerScreen == 0) return;
 
-    // Добавляем новые точки по мере движения
-    if (_totalDistance % _pointSpacing < 1.0) {
-      _addBasePoint();
+    // Если нужно заполнить начальные точки
+    if (_shouldFillInitialPoints) {
+      _fillInitialPoints();
     }
 
-    // Сбрасываем offset, чтобы избежать переполнения
-    if (_offset > 1000) {
-      _offset = 0;
+    // Добавляем новую точку с базовым уровнем (50 - это середина по вертикали)
+    _points.add(50); // Изменено с 40 на 50 - середина диапазона 0-100
+    
+    // Удаляем самую старую точку, чтобы поддерживать постоянную длину
+    if (_points.length > _pointsPerScreen + 50) {
+      _points.removeAt(0);
     }
 
     if (mounted) {
@@ -78,21 +62,26 @@ class _HeartRateChartState extends State<HeartRateChart>
     }
   }
 
-  void _addBasePoint() {
-    // Добавляем точку с базовым уровнем
-    _points.add(40);
-
-    // Ограничиваем количество точек
-    if (_points.length > 500) {
-      _points.removeAt(0);
+  void _fillInitialPoints() {
+    // Заполняем массив точками так, чтобы сразу была полная линия
+    // Берем pointsPerScreen + небольшой запас
+    final targetCount = _pointsPerScreen + 20;
+    
+    if (_points.length < targetCount) {
+      // Добавляем недостающие точки (50 - середина)
+      for (int i = _points.length; i < targetCount; i++) {
+        _points.add(50); // Изменено с 40 на 50
+      }
     }
+    
+    // Теперь у нас достаточно точек, чтобы линия начиналась с конца
+    _shouldFillInitialPoints = false;
   }
 
   @override
   void didUpdateWidget(HeartRateChart oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Используем ту же логику, что и в PulsingHeart
     if (widget.heartRate != _lastHeartRate) {
       _addHeartBeatSpike();
       _lastHeartRate = widget.heartRate;
@@ -100,22 +89,26 @@ class _HeartRateChartState extends State<HeartRateChart>
   }
 
   void _addHeartBeatSpike() {
-    if (!_isInitialized) return;
+    if (_points.isEmpty) return;
 
-    // Добавляем скачок для кардиограммы за пределами видимой области
-    // Сначала добавляем несколько точек базового уровня
-    for (int i = 0; i < 5; i++) {
-      _points.add(40);
+    // Удаляем последние несколько точек и заменяем их скачком
+    final pointsToRemove = 8;
+    if (_points.length > pointsToRemove) {
+      for (int i = 0; i < pointsToRemove; i++) {
+        _points.removeLast();
+      }
     }
 
-    // Затем добавляем сам скачок
-    _points.add(25); // Начало скачка
-    _points.add(80); // Пик скачка
-    _points.add(40); // Возврат к базовому уровню
-
-    // Добавляем еще несколько точек базового уровня
-    for (int i = 0; i < 5; i++) {
-      _points.add(40);
+    // Добавляем скачок относительно средней линии (50)
+    _points.add(25); // Начало скачка (сильнее вниз)
+    _points.add(35);
+    _points.add(85); // Пик скачка (сильнее вверх)
+    _points.add(65);
+    _points.add(50); // Возврат к середине
+    
+    // Добавляем несколько базовых точек после скачка
+    for (int i = 0; i < 3; i++) {
+      _points.add(50);
     }
   }
 
@@ -128,18 +121,26 @@ class _HeartRateChartState extends State<HeartRateChart>
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: widget.height,
-      child: CustomPaint(
-        painter: _CardiogramPainter(
-          points: _points,
-          lineColor: widget.lineColor,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Сохраняем ширину контейнера для расчетов
+        _containerWidth = constraints.maxWidth;
+        _pointsPerScreen = (_containerWidth / _pointSpacing).ceil();
+        
+        return SizedBox(
           height: widget.height,
-          offset: _offset,
-          pointSpacing: _pointSpacing,
-        ),
-        size: Size.infinite,
-      ),
+          child: CustomPaint(
+            painter: _CardiogramPainter(
+              points: _points,
+              lineColor: widget.lineColor,
+              height: widget.height,
+              pointSpacing: _pointSpacing,
+              pointsPerScreen: _pointsPerScreen,
+            ),
+            size: Size(_containerWidth, widget.height),
+          ),
+        );
+      },
     );
   }
 }
@@ -148,15 +149,15 @@ class _CardiogramPainter extends CustomPainter {
   final List<double> points;
   final Color lineColor;
   final double height;
-  final double offset;
   final double pointSpacing;
+  final int pointsPerScreen;
 
   _CardiogramPainter({
     required this.points,
     required this.lineColor,
     required this.height,
-    required this.offset,
     required this.pointSpacing,
+    required this.pointsPerScreen,
   });
 
   @override
@@ -175,45 +176,91 @@ class _CardiogramPainter extends CustomPainter {
     // Рисуем фоновую сетку
     _drawGrid(canvas, size, gridPaint);
 
-    // Начинаем рисовать линию кардиограммы
     if (points.isEmpty) return;
 
     final verticalScale = height / 100;
-    final centerY = height / 2;
-    final baseLine = centerY + 10 * verticalScale; // Базовый уровень
+    final baseLine = height / 2; // Теперь точно по середине!
 
-    // Рассчитываем, сколько точек помещается на экране
-    final pointsPerScreen = size.width / pointSpacing;
+    // Определяем, сколько точек у нас есть для отображения
+    final availablePoints = points.length;
+    
+    // Если у нас меньше точек, чем помещается на экран,
+    // начинаем рисовать с левого края (но это будет только в самом начале)
+    if (availablePoints <= pointsPerScreen) {
+      // Рисуем то, что есть
+      final firstX = 0.0;
+      // Преобразуем значение точки: 0 -> низ, 100 -> верх, 50 -> середина
+      final firstY = baseLine - (points[0] - 50) * verticalScale;
+      path.moveTo(firstX, firstY);
 
-    // Рассчитываем начальную точку для отображения
-    // Нам нужно отобразить точки в диапазоне [startIndex, endIndex]
-    final startIndex = offset / pointSpacing;
-    final endIndex = startIndex + pointsPerScreen;
+      for (int i = 1; i < availablePoints; i++) {
+        final x = i * pointSpacing;
+        final y = baseLine - (points[i] - 50) * verticalScale;
+        
+        if (x > size.width) break;
+        path.lineTo(x, y);
+      }
+    } else {
+      // У нас достаточно точек, начинаем с конца
+      // Начинаем рисовать с точки, которая находится на расстоянии pointsPerScreen от конца
+      final startIndex = availablePoints - pointsPerScreen;
+      
+      // Первая точка будет на X = 0
+      final firstX = 0.0;
+      final firstY = baseLine - (points[startIndex] - 50) * verticalScale;
+      path.moveTo(firstX, firstY);
 
-    // Находим индексы первой и последней видимой точки
-    final firstVisibleIndex = startIndex.floor();
-    final lastVisibleIndex = endIndex.ceil().clamp(0, points.length - 1);
-
-    // Рисуем только видимую часть графика
-    if (firstVisibleIndex < points.length) {
-      // Начинаем с первой видимой точки
-      final startX = (firstVisibleIndex - startIndex) * pointSpacing;
-      final startY = baseLine - points[firstVisibleIndex] * verticalScale;
-      path.moveTo(startX, startY);
-
-      // Рисуем все видимые точки
-      for (int i = firstVisibleIndex + 1; i <= lastVisibleIndex && i < points.length; i++) {
-        final x = (i - startIndex) * pointSpacing;
-        final y = baseLine - points[i] * verticalScale;
+      // Рисуем остальные точки
+      for (int i = 1; i < pointsPerScreen; i++) {
+        final x = i * pointSpacing;
+        final pointIndex = startIndex + i;
+        
+        if (pointIndex >= availablePoints) break;
+        
+        final y = baseLine - (points[pointIndex] - 50) * verticalScale;
+        
+        if (x > size.width) break;
         path.lineTo(x, y);
       }
     }
 
     canvas.drawPath(path, paint);
+
+    // Дополнительно рисуем среднюю пунктирную линию для наглядности
+    final centerLinePaint = Paint()
+      ..color = lineColor.withOpacity(0.3)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    _drawDashedLine(
+      canvas,
+      Offset(0, baseLine),
+      Offset(size.width, baseLine),
+      centerLinePaint,
+    );
+  }
+
+  void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
+    const dashWidth = 5.0;
+    const dashSpace = 5.0;
+    final delta = end - start;
+    final direction = delta / delta.distance;
+
+    double distance = 0;
+    while (distance < delta.distance) {
+      final dashStart = start + direction * distance;
+      distance += dashWidth;
+      if (distance > delta.distance) {
+        distance = delta.distance;
+      }
+      final dashEnd = start + direction * distance;
+      canvas.drawLine(dashStart, dashEnd, paint);
+      distance += dashSpace;
+    }
   }
 
   void _drawGrid(Canvas canvas, Size size, Paint gridPaint) {
-    // Горизонтальные линии
+    // Горизонтальные линии (5 линий на равном расстоянии)
     for (int i = 0; i <= 5; i++) {
       final y = size.height * i / 5;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
@@ -234,7 +281,7 @@ class _CardiogramPainter extends CustomPainter {
     return oldDelegate.points != points ||
            oldDelegate.lineColor != lineColor ||
            oldDelegate.height != height ||
-           oldDelegate.offset != offset ||
-           oldDelegate.pointSpacing != pointSpacing;
+           oldDelegate.pointSpacing != pointSpacing ||
+           oldDelegate.pointsPerScreen != pointsPerScreen;
   }
 }
