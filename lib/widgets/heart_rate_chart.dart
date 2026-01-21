@@ -24,52 +24,67 @@ class _HeartRateChartState extends State<HeartRateChart>
   final List<double> _points = [];
   int? _lastHeartRate;
   bool _isInitialized = false;
-  int _frameCount = 0;
+  double _offset = 0;
+  double _totalDistance = 0;
+  final double _pointSpacing = 3.0; // Расстояние между точками
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(days: 1), // Очень длинная анимация
+      duration: const Duration(milliseconds: 16), // ~60 FPS
     )..repeat();
 
     _lastHeartRate = widget.previousHeartRate;
     _initializePoints();
 
-    // Добавляем слушатель для анимации
     _controller.addListener(_onAnimationUpdate);
   }
 
-  void _onAnimationUpdate() {
-    _frameCount++;
+  void _initializePoints() {
+    // Инициализируем начальными точками (ровная линия)
+    // Нам нужно достаточно точек, чтобы конец линии был в конце видимого блока
+    // Предполагаем, что ширина контейнера ~300px, а расстояние между точками 3px
+    // Значит нужно ~100 точек для заполнения видимой области + запас
+    final pointsNeeded = 150;
+    for (int i = 0; i < pointsNeeded; i++) {
+      _points.add(40); // Базовый уровень
+    }
 
-    // Добавляем новые точки для движения графика каждые несколько кадров
-    if (_frameCount % 3 == 0) {
+    // Устанавливаем начальное смещение так, чтобы конец линии был в конце блока
+    // Это гарантирует, что новые скачки будут появляться из конца блока сразу
+    _offset = (pointsNeeded - 100) * _pointSpacing;
+    _isInitialized = true;
+  }
+
+  void _onAnimationUpdate() {
+    // Двигаем график слева направо
+    _offset += 1.0;
+    _totalDistance += 1.0;
+
+    // Добавляем новые точки по мере движения
+    if (_totalDistance % _pointSpacing < 1.0) {
       _addBasePoint();
     }
 
-    // Обновляем UI
+    // Сбрасываем offset, чтобы избежать переполнения
+    if (_offset > 1000) {
+      _offset = 0;
+    }
+
     if (mounted) {
       setState(() {});
     }
   }
 
-  void _initializePoints() {
-    // Инициализируем начальными точками (ровная линия)
-    for (int i = 0; i < 100; i++) {
-      _points.add(40); // Базовый уровень
-    }
-    _isInitialized = true;
-  }
-
   void _addBasePoint() {
-    // Добавляем точку с базовым уровнем для движения графика
+    // Добавляем точку с базовым уровнем
     _points.add(40);
 
     // Ограничиваем количество точек
-    if (_points.length > 300) {
-      _points.removeRange(0, _points.length - 300);
+    if (_points.length > 500) {
+      _points.removeAt(0);
     }
   }
 
@@ -87,11 +102,21 @@ class _HeartRateChartState extends State<HeartRateChart>
   void _addHeartBeatSpike() {
     if (!_isInitialized) return;
 
-    // Добавляем скачок для кардиограммы
-    _points.add(40); // Базовый уровень
+    // Добавляем скачок для кардиограммы за пределами видимой области
+    // Сначала добавляем несколько точек базового уровня
+    for (int i = 0; i < 5; i++) {
+      _points.add(40);
+    }
+
+    // Затем добавляем сам скачок
     _points.add(25); // Начало скачка
     _points.add(80); // Пик скачка
     _points.add(40); // Возврат к базовому уровню
+
+    // Добавляем еще несколько точек базового уровня
+    for (int i = 0; i < 5; i++) {
+      _points.add(40);
+    }
   }
 
   @override
@@ -110,6 +135,8 @@ class _HeartRateChartState extends State<HeartRateChart>
           points: _points,
           lineColor: widget.lineColor,
           height: widget.height,
+          offset: _offset,
+          pointSpacing: _pointSpacing,
         ),
         size: Size.infinite,
       ),
@@ -121,11 +148,15 @@ class _CardiogramPainter extends CustomPainter {
   final List<double> points;
   final Color lineColor;
   final double height;
+  final double offset;
+  final double pointSpacing;
 
   _CardiogramPainter({
     required this.points,
     required this.lineColor,
     required this.height,
+    required this.offset,
+    required this.pointSpacing,
   });
 
   @override
@@ -147,22 +178,32 @@ class _CardiogramPainter extends CustomPainter {
     // Начинаем рисовать линию кардиограммы
     if (points.isEmpty) return;
 
-    final pointSpacing = 5.0;
     final verticalScale = height / 100;
     final centerY = height / 2;
     final baseLine = centerY + 10 * verticalScale; // Базовый уровень
 
-    // Рассчитываем начальную позицию так, чтобы конец графика был в правой части
-    // Мы хотим, чтобы новые точки (скачки) появлялись в конце (справа)
-    final startIndex = points.length - (size.width / pointSpacing).ceil() - 10;
-    final effectiveStartIndex = startIndex > 0 ? startIndex : 0;
+    // Рассчитываем, сколько точек помещается на экране
+    final pointsPerScreen = size.width / pointSpacing;
 
-    // Начинаем рисовать с первой видимой точки
-    if (effectiveStartIndex < points.length) {
-      path.moveTo(0, baseLine - points[effectiveStartIndex] * verticalScale);
+    // Рассчитываем начальную точку для отображения
+    // Нам нужно отобразить точки в диапазоне [startIndex, endIndex]
+    final startIndex = offset / pointSpacing;
+    final endIndex = startIndex + pointsPerScreen;
 
-      for (int i = effectiveStartIndex + 1; i < points.length; i++) {
-        final x = (i - effectiveStartIndex) * pointSpacing;
+    // Находим индексы первой и последней видимой точки
+    final firstVisibleIndex = startIndex.floor();
+    final lastVisibleIndex = endIndex.ceil().clamp(0, points.length - 1);
+
+    // Рисуем только видимую часть графика
+    if (firstVisibleIndex < points.length) {
+      // Начинаем с первой видимой точки
+      final startX = (firstVisibleIndex - startIndex) * pointSpacing;
+      final startY = baseLine - points[firstVisibleIndex] * verticalScale;
+      path.moveTo(startX, startY);
+
+      // Рисуем все видимые точки
+      for (int i = firstVisibleIndex + 1; i <= lastVisibleIndex && i < points.length; i++) {
+        final x = (i - startIndex) * pointSpacing;
         final y = baseLine - points[i] * verticalScale;
         path.lineTo(x, y);
       }
@@ -192,6 +233,8 @@ class _CardiogramPainter extends CustomPainter {
   bool shouldRepaint(covariant _CardiogramPainter oldDelegate) {
     return oldDelegate.points != points ||
            oldDelegate.lineColor != lineColor ||
-           oldDelegate.height != height;
+           oldDelegate.height != height ||
+           oldDelegate.offset != offset ||
+           oldDelegate.pointSpacing != pointSpacing;
   }
 }
