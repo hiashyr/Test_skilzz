@@ -28,65 +28,99 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Consumer<MetricsProvider>(
-      builder: (context, metricsProvider, child) {
-        final user = metricsProvider.getUser(widget.userId);
-        final connectionStatus = metricsProvider.connectionStatus;
+    return Scaffold(
+      body: Consumer<MetricsProvider>(
+        builder: (context, metricsProvider, child) {
+          final user = metricsProvider.getUser(widget.userId);
+          final connectionStatus = metricsProvider.connectionStatus;
 
-        // Если есть ошибка подключения, показываем только сообщение об ошибке
-        if (connectionStatus == ConnectionStatus.error && metricsProvider.errorMessage != null) {
-          return Scaffold(
-            appBar: AppBar(
-              title: Text(user?.userName.isNotEmpty == true ? user!.userName : 'User ${widget.userId}'),
-              actions: const [
-                ThemeToggleButton(),
+          // Если есть ошибка подключения, показываем только сообщение об ошибке
+          if (connectionStatus == ConnectionStatus.error && metricsProvider.errorMessage != null) {
+            return CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => context.go('/'),
+                  ),
+                  title: Text(user?.userName.isNotEmpty == true ? user!.userName : 'Пользователь ${widget.userId}'),
+                  actions: const [
+                    ThemeToggleButton(),
+                  ],
+                  pinned: true,
+                  floating: false,
+                  snap: false,
+                  forceMaterialTransparency: false,
+                  surfaceTintColor: Colors.transparent,
+                  backgroundColor: theme.appBarTheme.backgroundColor,
+                  elevation: theme.appBarTheme.elevation,
+                ),
+                SliverFillRemaining(
+                  child: ErrorMessageWidget(
+                    icon: Icons.heart_broken_rounded,
+                    message: metricsProvider.errorMessage!,
+                    subtitle: 'Приложение автоматически переподключится, когда сервер станет доступен.',
+                    reconnectCountdown: metricsProvider.reconnectCountdown > 0
+                        ? metricsProvider.reconnectCountdown
+                        : null,
+                    onAction: () => metricsProvider.startListening(),
+                    actionLabel: 'Переподключиться',
+                  ),
+                ),
               ],
-            ),
-            body: ErrorMessageWidget(
-              icon: Icons.heart_broken_rounded,
-              message: metricsProvider.errorMessage!,
-              subtitle: 'The app will automatically reconnect when the server is available.',
-              reconnectCountdown: metricsProvider.reconnectCountdown > 0
-                  ? metricsProvider.reconnectCountdown
-                  : null,
-              onAction: () => metricsProvider.startListening(),
-              actionLabel: 'Reconnect',
-            ),
-          );
-        }
-
-        // Если пользователь не найден
-        if (user == null) {
-          return Scaffold(
-            appBar: AppBar(
-              title: Text('User ${widget.userId}'),
-              actions: const [
-                ThemeToggleButton(),
-              ],
-            ),
-            body: ErrorMessageWidget(
-              icon: Icons.person_off,
-              message: 'User not found',
-              onAction: () => context.go('/'),
-              actionLabel: 'Back to Dashboard',
-            ),
-          );
-        }
-
-        // Сохраняем предыдущее значение пульса для следующего обновления
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              _previousHeartRate = user.heartRate;
-            });
+            );
           }
-        });
 
-        return Scaffold(
-          body: CustomScrollView(
+          // Если пользователь не найден
+          if (user == null) {
+            return CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => context.go('/'),
+                  ),
+                  title: Text('Пользователь ${widget.userId}'),
+                  actions: const [
+                    ThemeToggleButton(),
+                  ],
+                  pinned: true,
+                  floating: false,
+                  snap: false,
+                  forceMaterialTransparency: false,
+                  surfaceTintColor: Colors.transparent,
+                  backgroundColor: theme.appBarTheme.backgroundColor,
+                  elevation: theme.appBarTheme.elevation,
+                ),
+                SliverFillRemaining(
+                  child: ErrorMessageWidget(
+                    icon: Icons.person_off,
+                    message: 'Пользователь не найден',
+                    onAction: () => context.go('/'),
+                    actionLabel: 'Вернуться на главную',
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Сохраняем предыдущее значение пульса для следующего обновления
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _previousHeartRate = user.heartRate;
+              });
+            }
+          });
+
+          return CustomScrollView(
             slivers: [
               SliverAppBar(
-                title: Text(user.userName.isNotEmpty ? user.userName : 'User ${widget.userId}'),
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => context.go('/'),
+                ),
+                title: Text(user.userName.isNotEmpty ? user.userName : 'Пользователь ${widget.userId}'),
                 actions: const [
                   ThemeToggleButton(),
                 ],
@@ -115,7 +149,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                               child: PulsingHeart(
                                 heartRate: user.heartRate,
                                 previousHeartRate: _previousHeartRate,
-                                // size по умолчанию теперь 180, можно не указывать явно
                               ),
                             ),
                           ),
@@ -137,7 +170,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Cardiogram',
+                                  'Кардиограмма',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -154,11 +187,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 32),
-                          ElevatedButton(
-                            onPressed: () => context.go('/'),
-                            child: const Text('Back to Dashboard'),
-                          ),
                         ],
                       ),
                     ),
@@ -166,9 +194,9 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                 ),
               ),
             ],
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

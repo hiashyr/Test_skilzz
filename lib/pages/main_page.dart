@@ -14,7 +14,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Heart Rate Monitor'),
+        title: const Text('Монитор сердечного ритма'),
         actions: const [
           ThemeToggleButton(),
         ],
@@ -29,7 +29,7 @@ class DashboardScreen extends StatelessWidget {
             return ErrorMessageWidget(
               useBrokenHeart: true,
               message: metricsProvider.errorMessage!,
-              subtitle: 'The app will automatically reconnect when the server is available.',
+              subtitle: 'Приложение автоматически переподключится, когда сервер станет доступен.',
               reconnectCountdown: metricsProvider.reconnectCountdown > 0
                   ? metricsProvider.reconnectCountdown
                   : null,
@@ -40,7 +40,7 @@ class DashboardScreen extends StatelessWidget {
           if (connectionStatus == ConnectionStatus.connecting || 
               !metricsProvider.hasData) {
             return const LoadingWidget(
-              message: 'Waiting for data...',
+              message: 'Ожидание данных...',
             );
           }
 

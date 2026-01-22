@@ -64,7 +64,7 @@ class ErrorMessageWidget extends StatelessWidget {
             if (reconnectCountdown != null && reconnectCountdown! > 0) ...[
               const SizedBox(height: 8),
               Text(
-                'Reconnecting in $reconnectCountdown...',
+                'Переподключение через $reconnectCountdown...',
                 style: TextStyle(
                   fontSize: 12,
                   color: theme.colorScheme.primary,
