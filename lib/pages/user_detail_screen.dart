@@ -64,7 +64,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                         ? metricsProvider.reconnectCountdown
                         : null,
                     onAction: () => metricsProvider.startListening(),
-                    actionLabel: 'Переподключиться',
                   ),
                 ),
               ],

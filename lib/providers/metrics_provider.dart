@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:grpc/grpc_web.dart';
 import '../generated/api.pbgrpc.dart';
-import '../sse_stub.dart'
-  if (dart.library.html) '../sse_client_web.dart';
-import '../grpc_stub.dart' if (dart.library.io) 'package:grpc/grpc.dart' as grpc;
 
 enum ConnectionStatus {
   connecting,
@@ -22,11 +20,10 @@ class MetricsProvider extends ChangeNotifier {
   String? _errorMessage;
   int _reconnectCountdown = 0; // Счетчик обратного отсчета
   
-  // Для gRPC
-  dynamic _channel;
+  // Для gRPC-web
+  GrpcWebClientChannel? _channel;
   MetricsClient? _client;
   Stream<UserMetric>? _stream;
-  StreamSubscription<UserMetric>? _streamSubscription;
   
   // Флаги управления
   bool _isListening = false;
@@ -54,102 +51,38 @@ class MetricsProvider extends ChangeNotifier {
   
   // Основной цикл прослушивания с автоматическим переподключением
   void _startListeningLoop() async {
+    const int retrySeconds = 5;
     while (!_shouldStop) {
       try {
         _updateConnectionStatus(ConnectionStatus.connecting, null);
-
-        if (kIsWeb) {
-          await _listenSSEStream();
-        } else {
-          await _listenGrpcStream();
-        }
+        await _listenGrpcWebStream();
       } catch (e) {
         if (!_shouldStop) {
           debugPrint('Connection error: $e');
-          _updateConnectionStatus(
-            ConnectionStatus.error,
-            'Server connection lost',
-          );
+          _updateConnectionStatus(ConnectionStatus.error, 'Подключение потеряно');
 
-          // Запускаем обратный отсчет перед следующей попыткой
-          for (int i = 5; i > 0; i--) {
-            if (_shouldStop) break;
-            _updateReconnectCountdown(i);
-            await Future.delayed(const Duration(seconds: 1));
-          }
-
-          // Если не было команды на остановку, продолжаем
-          if (!_shouldStop) {
-            _updateReconnectCountdown(0);
-          }
+          // Обратный отсчёт перед повторной попыткой
+          await _startReconnectCountdown(retrySeconds);
         }
       }
     }
   }
   
-  // Прослушивание SSE потока для веба
-  Future<void> _listenSSEStream() async {
-    final stream = sseUserMetricStream('https://localhost:8143/metrics/sse');
-    StreamSubscription<UserMetric>? subscription;
-    final completer = Completer<void>();
-    
-    subscription = stream.listen(
-      (metric) {
-        if (_shouldStop) {
-          subscription?.cancel();
-          if (!completer.isCompleted) completer.complete();
-          return;
-        }
-        _updateMetric(metric);
-      },
-      onError: (error) {
-        subscription?.cancel();
-        if (!completer.isCompleted) {
-          completer.completeError(error);
-        }
-      },
-      onDone: () {
-        if (!completer.isCompleted) {
-          // Если поток закрылся без ошибки, но мы не должны останавливаться,
-          // считаем это ошибкой для переподключения
-          if (!_shouldStop) {
-            completer.completeError(Exception('SSE stream closed unexpectedly'));
-          } else {
-            completer.complete();
-          }
-        }
-      },
-      cancelOnError: false,
-    );
-    
-    try {
-      await completer.future;
-    } finally {
-      subscription.cancel();
-    }
-  }
   
-  // Прослушивание gRPC потока для мобильных платформ
-  Future<void> _listenGrpcStream() async {
+  // Прослушивание gRPC-web потока
+  Future<void> _listenGrpcWebStream() async {
     // Закрываем предыдущее подключение, если есть
     _cleanupGrpc();
-    
-    _channel = grpc.ClientChannel(
-      'localhost',
-      port: 8143,
-      options: grpc.ChannelOptions(
-        credentials: grpc.ChannelCredentials.insecure(),
-      ),
-    );
-    _client = MetricsClient(_channel);
-    
+
+    _channel = GrpcWebClientChannel.xhr(Uri.parse('https://localhost:8143'));
+    _client = MetricsClient(_channel!);
     final call = _client!.getStats(Empty());
     _stream = call;
-    
-      await for (var metric in _stream!) {
-        if (_shouldStop) break;
-        _updateMetric(metric);
-      }
+
+    await for (var metric in _stream!) {
+      if (_shouldStop) break;
+      _updateMetric(metric);
+    }
   }
   
   // Обновление метрики пользователя
@@ -165,12 +98,6 @@ class MetricsProvider extends ChangeNotifier {
   
   // Обновление статуса подключения
   void _updateConnectionStatus(ConnectionStatus status, String? error) {
-    // Не сбрасываем статус ошибки, если мы переходим в connected,
-    // но еще не получили данные
-    if (status == ConnectionStatus.connected && !hasData) {
-      return;
-    }
-
     _connectionStatus = status;
     _errorMessage = error;
     _reconnectCountdown = 0; // Сбрасываем счетчик при изменении статуса
@@ -182,14 +109,19 @@ class MetricsProvider extends ChangeNotifier {
     _reconnectCountdown = seconds;
     notifyListeners();
   }
+
+  // Запуск обратного отсчёта с возможностью прерывания
+  Future<void> _startReconnectCountdown(int seconds) async {
+    for (int i = seconds; i > 0; i--) {
+      if (_shouldStop) break;
+      _updateReconnectCountdown(i);
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    if (!_shouldStop) _updateReconnectCountdown(0);
+  }
   
-  // Очистка gRPC ресурсов
+  // Очистка gRPC-web ресурсов
   void _cleanupGrpc() {
-    _streamSubscription?.cancel();
-    _streamSubscription = null;
-    try {
-      _channel?.shutdown();
-    } catch (_) {}
     _channel = null;
     _client = null;
     _stream = null;

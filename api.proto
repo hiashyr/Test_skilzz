@@ -1,0 +1,16 @@
+syntax = "proto3";
+package api;
+option go_package = "./grpc";
+
+message Empty {}
+
+message UserMetric {
+    string user_id = 1;
+    string user_name = 2;
+    int32 heart_rate = 3;
+}
+
+service Metrics {
+    rpc GetStats (Empty) returns (stream UserMetric) {
+    }
+}

@@ -23,7 +23,7 @@ class _HeartRateChartState extends State<HeartRateChart>
   late AnimationController _controller;
   final List<double> _points = [];
   int? _lastHeartRate;
-  final double _pointSpacing = 3.0; // Расстояние между точками
+  final double _pointSpacing = 3.0;
   int _pointsPerScreen = 0;
   double _containerWidth = 0;
   bool _shouldFillInitialPoints = true;
@@ -33,30 +33,32 @@ class _HeartRateChartState extends State<HeartRateChart>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 16), // ~60 FPS
+      duration: const Duration(milliseconds: 16),
     )..repeat();
 
+    // Инициализируем «последний» пульс значением из widget
     _lastHeartRate = widget.previousHeartRate;
 
+    // Подписываемся на события контроллера
     _controller.addListener(_onAnimationUpdate);
   }
 
   void _onAnimationUpdate() {
     if (_pointsPerScreen == 0) return;
-
-    // Если нужно заполнить начальные точки
+    // При первом проходе заполняем массив начальными значениями
     if (_shouldFillInitialPoints) {
       _fillInitialPoints();
     }
 
-    // Добавляем новую точку с базовым уровнем (50 - это середина по вертикали)
-    _points.add(50); // Изменено с 40 на 50 - середина диапазона 0-100
-    
-    // Удаляем самую старую точку, чтобы поддерживать постоянную длину
+    // Добавляем «базовую» точку: 50 соответствует средней линии по вертикали
+    _points.add(50);
+
+    // Чтобы список не рос бесконечно, ограничиваем его длину
     if (_points.length > _pointsPerScreen + 50) {
       _points.removeAt(0);
     }
 
+    // Обновляем UI (перерисовка через CustomPainter)
     if (mounted) {
       setState(() {});
     }
@@ -89,9 +91,11 @@ class _HeartRateChartState extends State<HeartRateChart>
   }
 
   void _addHeartBeatSpike() {
+    // Если не заполнены точки — нечего изменять
     if (_points.isEmpty) return;
 
-    // Удаляем последние несколько точек и заменяем их скачком
+    // Удаляем несколько последних точек, чтобы заменить их «ударом сердца».
+    // Это формирует заметный пик на графике в момент изменения значения.
     final pointsToRemove = 8;
     if (_points.length > pointsToRemove) {
       for (int i = 0; i < pointsToRemove; i++) {
@@ -99,14 +103,15 @@ class _HeartRateChartState extends State<HeartRateChart>
       }
     }
 
-    // Добавляем скачок относительно средней линии (50)
-    _points.add(25); // Начало скачка (сильнее вниз)
+    // Простейший паттерн скачка: серия значений ниже/выше средней линии.
+    // Эти числа подобраны экспериментально для визуального эффекта.
+    _points.add(25); // спад перед ударом
     _points.add(35);
-    _points.add(85); // Пик скачка (сильнее вверх)
-    _points.add(65);
-    _points.add(50); // Возврат к середине
-    
-    // Добавляем несколько базовых точек после скачка
+    _points.add(85); // острый пик вверх
+    _points.add(65); // спад после пика
+    _points.add(50); // возвращение к базовой линии
+
+    // Несколько базовых точек, чтобы плавно вернуться к постоянному уровню.
     for (int i = 0; i < 3; i++) {
       _points.add(50);
     }

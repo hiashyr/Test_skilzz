@@ -17,8 +17,8 @@ class ThemeToggleButton extends StatelessWidget {
       ),
       onPressed: () => themeProvider.toggleTheme(),
       tooltip: themeProvider.isDarkMode 
-          ? 'Switch to light mode' 
-          : 'Switch to dark mode',
+          ? 'Переключить на светлую тему' 
+          : 'Переключить на темную тему',
     );
   }
 }
