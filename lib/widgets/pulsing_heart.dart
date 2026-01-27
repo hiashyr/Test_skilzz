@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import '../utils/heart_rate_colors.dart';
@@ -16,19 +15,16 @@ class PulsingHeart extends StatefulWidget {
   final Duration? duration;
   final double? scale;
   final Curve? curve;
-  final double glowIntensity;
-  final double glowRadius;
+  
 
   const PulsingHeart({
     super.key,
     required this.heartRate,
     this.previousHeartRate,
-    this.size = 180, // Увеличенный размер по умолчанию
+    this.size = 180,
     this.duration,
     this.scale,
     this.curve,
-    this.glowIntensity = 0.8,
-    this.glowRadius = 20.0,
   });
 
   @override
@@ -39,7 +35,6 @@ class _PulsingHeartState extends State<PulsingHeart>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-  late Animation<double> _glowAnimation;
   int? _lastHeartRate;
   Duration? _duration;
   double? _scale;
@@ -55,13 +50,6 @@ class _PulsingHeartState extends State<PulsingHeart>
 
     // Инициализируем анимации с дефолтными значениями
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOut,
-      ),
-    );
-
-    _glowAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
         curve: Curves.easeInOut,
@@ -139,57 +127,32 @@ class _PulsingHeartState extends State<PulsingHeart>
   Widget build(BuildContext context) {
     final heartColor = HeartRateColors.getColor(widget.heartRate);
 
-    return AnimatedBuilder(
-      animation: Listenable.merge([_scaleAnimation, _glowAnimation]),
-      builder: (context, child) {
-        // Рассчитываем параметры свечения в зависимости от пульса
-        final glowIntensity = widget.glowIntensity * _glowAnimation.value;
-        final glowScale = 1.0 + (0.15 * _glowAnimation.value); // Масштаб свечения 1.0-1.15
-        final blurRadius = 8.0 * _glowAnimation.value; // Радиус размытия 0-8
+    final iconChild = RepaintBoundary(
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.favorite,
+          size: widget.size,
+          color: heartColor,
+          shadows: [
+            Shadow(
+              color: heartColor,
+              blurRadius: 30,
+            ),
+          ],
+        ),
+      ),
+    );
 
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      child: iconChild,
+      builder: (context, child) {
         return Transform.scale(
           scale: _scaleAnimation.value,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Слой свечения (увеличенная иконка с размытием)
-              Transform.scale(
-                scale: glowScale,
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(
-                    sigmaX: blurRadius,
-                    sigmaY: blurRadius,
-                  ),
-                  child: Icon(
-                    Icons.favorite,
-                    size: widget.size,
-                    color: heartColor.withOpacity(0.7 * glowIntensity),
-                  ),
-                ),
-              ),
-              // Дополнительный слой свечения для усиления эффекта
-              Transform.scale(
-                scale: glowScale * 0.95,
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(
-                    sigmaX: blurRadius * 0.5,
-                    sigmaY: blurRadius * 0.5,
-                  ),
-                  child: Icon(
-                    Icons.favorite,
-                    size: widget.size,
-                    color: heartColor.withOpacity(0.4 * glowIntensity),
-                  ),
-                ),
-              ),
-              // Основная иконка
-              Icon(
-                Icons.favorite,
-                size: widget.size,
-                color: heartColor,
-              ),
-            ],
-          ),
+          child: child,
         );
       },
     );
