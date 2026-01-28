@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
 class HeartRateChart extends StatefulWidget {
   final int heartRate;
@@ -26,7 +27,6 @@ class _HeartRateChartState extends State<HeartRateChart>
   final double _pointSpacing = 3.0;
   int _pointsPerScreen = 0;
   double _containerWidth = 0;
-  bool _shouldFillInitialPoints = true;
 
   @override
   void initState() {
@@ -44,12 +44,6 @@ class _HeartRateChartState extends State<HeartRateChart>
   }
 
   void _onAnimationUpdate() {
-    if (_pointsPerScreen == 0) return;
-    // При первом проходе заполняем массив начальными значениями
-    if (_shouldFillInitialPoints) {
-      _fillInitialPoints();
-    }
-
     // Добавляем «базовую» точку: 50 соответствует средней линии по вертикали
     _points.add(50);
 
@@ -62,22 +56,6 @@ class _HeartRateChartState extends State<HeartRateChart>
     if (mounted) {
       setState(() {});
     }
-  }
-
-  void _fillInitialPoints() {
-    // Заполняем массив точками так, чтобы сразу была полная линия
-    // Берем pointsPerScreen + небольшой запас
-    final targetCount = _pointsPerScreen + 20;
-    
-    if (_points.length < targetCount) {
-      // Добавляем недостающие точки (50 - середина)
-      for (int i = _points.length; i < targetCount; i++) {
-        _points.add(50); // Изменено с 40 на 50
-      }
-    }
-    
-    // Теперь у нас достаточно точек, чтобы линия начиналась с конца
-    _shouldFillInitialPoints = false;
   }
 
   @override
@@ -104,7 +82,6 @@ class _HeartRateChartState extends State<HeartRateChart>
     }
 
     // Простейший паттерн скачка: серия значений ниже/выше средней линии.
-    // Эти числа подобраны экспериментально для визуального эффекта.
     _points.add(25); // спад перед ударом
     _points.add(35);
     _points.add(85); // острый пик вверх
@@ -184,84 +161,30 @@ class _CardiogramPainter extends CustomPainter {
     if (points.isEmpty) return;
 
     final verticalScale = height / 100;
-    final baseLine = height / 2; // Теперь точно по середине!
+    final baseLine = height / 2;
 
-    // Определяем, сколько точек у нас есть для отображения
+    // Всегда рисуем последние N точек: N = min(pointsPerScreen, availablePoints)
     final availablePoints = points.length;
-    
-    // Если у нас меньше точек, чем помещается на экран,
-    // начинаем рисовать с левого края (но это будет только в самом начале)
-    if (availablePoints <= pointsPerScreen) {
-      // Рисуем то, что есть
-      final firstX = 0.0;
-      // Преобразуем значение точки: 0 -> низ, 100 -> верх, 50 -> середина
-      final firstY = baseLine - (points[0] - 50) * verticalScale;
-      path.moveTo(firstX, firstY);
+    final count = math.min(pointsPerScreen, availablePoints);
+    if (count <= 0) return;
 
-      for (int i = 1; i < availablePoints; i++) {
-        final x = i * pointSpacing;
-        final y = baseLine - (points[i] - 50) * verticalScale;
-        
-        if (x > size.width) break;
-        path.lineTo(x, y);
-      }
-    } else {
-      // У нас достаточно точек, начинаем с конца
-      // Начинаем рисовать с точки, которая находится на расстоянии pointsPerScreen от конца
-      final startIndex = availablePoints - pointsPerScreen;
-      
-      // Первая точка будет на X = 0
-      final firstX = 0.0;
-      final firstY = baseLine - (points[startIndex] - 50) * verticalScale;
-      path.moveTo(firstX, firstY);
+    final startIndex = availablePoints - count;
 
-      // Рисуем остальные точки
-      for (int i = 1; i < pointsPerScreen; i++) {
-        final x = i * pointSpacing;
-        final pointIndex = startIndex + i;
-        
-        if (pointIndex >= availablePoints) break;
-        
-        final y = baseLine - (points[pointIndex] - 50) * verticalScale;
-        
-        if (x > size.width) break;
-        path.lineTo(x, y);
-      }
+    // Первая точка на X = 0
+    final firstX = 0.0;
+    final firstY = baseLine - (points[startIndex] - 50) * verticalScale;
+    path.moveTo(firstX, firstY);
+
+    for (int i = 1; i < count; i++) {
+      final x = i * pointSpacing;
+      final pointIndex = startIndex + i;
+      final y = baseLine - (points[pointIndex] - 50) * verticalScale;
+      if (x > size.width) break;
+      path.lineTo(x, y);
     }
 
     canvas.drawPath(path, paint);
 
-    // Дополнительно рисуем среднюю пунктирную линию для наглядности
-    final centerLinePaint = Paint()
-      ..color = lineColor.withOpacity(0.3)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    _drawDashedLine(
-      canvas,
-      Offset(0, baseLine),
-      Offset(size.width, baseLine),
-      centerLinePaint,
-    );
-  }
-
-  void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
-    const dashWidth = 5.0;
-    const dashSpace = 5.0;
-    final delta = end - start;
-    final direction = delta / delta.distance;
-
-    double distance = 0;
-    while (distance < delta.distance) {
-      final dashStart = start + direction * distance;
-      distance += dashWidth;
-      if (distance > delta.distance) {
-        distance = delta.distance;
-      }
-      final dashEnd = start + direction * distance;
-      canvas.drawLine(dashStart, dashEnd, paint);
-      distance += dashSpace;
-    }
   }
 
   void _drawGrid(Canvas canvas, Size size, Paint gridPaint) {
