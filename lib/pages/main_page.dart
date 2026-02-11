@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/metrics_provider.dart';
 import '../providers/metrics_riverpod.dart';
 import '../widgets/user_card.dart';
 import '../widgets/loading_widget.dart';
@@ -13,9 +12,7 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final metricsProvider = ref.watch(metricsNotifierProvider);
-
-    final connectionStatus = metricsProvider.connectionStatus;
+    final usersAsync = ref.watch(metricsStreamProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -24,27 +21,18 @@ class DashboardScreen extends ConsumerWidget {
           ThemeToggleButton(),
         ],
       ),
-      body: Builder(
-        builder: (_) {
-          if (connectionStatus == ConnectionStatus.error &&
-              metricsProvider.errorMessage != null) {
-            return ErrorMessageWidget(
-              useBrokenHeart: true,
-              message: metricsProvider.errorMessage!,
-              subtitle: 'Приложение автоматически переподключится, когда сервер станет доступен.',
-              reconnectCountdown: metricsProvider.reconnectCountdown > 0
-                  ? metricsProvider.reconnectCountdown
-                  : null,
-            );
+      body: usersAsync.when(
+        data: (streamState) {
+          // Если идёт переподключение — показываем спиннер
+          if (streamState.isReconnecting) {
+            return const LoadingWidget(message: 'Ожидание сервера...');
           }
 
-          if (connectionStatus == ConnectionStatus.connecting || !metricsProvider.hasData) {
-            return const LoadingWidget(
-              message: 'Ожидание данных...',
-            );
-          }
+          final usersList = streamState.data ?? [];
 
-          final usersList = metricsProvider.usersList;
+          if (usersList.isEmpty) {
+            return const Center(child: Text('Нет данных о пользователях'));
+          }
 
           return Column(
             children: [
@@ -64,6 +52,12 @@ class DashboardScreen extends ConsumerWidget {
             ],
           );
         },
+        loading: () => const LoadingWidget(message: 'Ожидание данных...'),
+        error: (err, stack) => ErrorMessageWidget(
+          useBrokenHeart: true,
+          message: err.toString(),
+          subtitle: 'Попробуйте перезагрузить страницу.',
+        ),
       ),
     );
   }
