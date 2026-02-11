@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/metrics_riverpod.dart';
 import '../widgets/loading_widget.dart';
-import '../widgets/error_message_widget.dart';
 import '../widgets/heart_rate_display.dart';
 import '../widgets/pulsing_heart.dart';
 import '../widgets/theme_toggle_button.dart';
@@ -52,7 +51,7 @@ class _UserDetailScreenState extends ConsumerState<UserDetailScreen> {
           return CustomScrollView(
             slivers: [
               _buildAppBar(
-                context, 
+                context,
                 user.userName.isNotEmpty ? user.userName : 'Пользователь ${widget.userId}'
               ),
               SliverToBoxAdapter(
@@ -120,20 +119,9 @@ class _UserDetailScreenState extends ConsumerState<UserDetailScreen> {
           message: 'Подключение к серверу...',
         ),
 
-        // ❌ ОШИБКА - показываем сообщение и кнопку повтора
-        error: (err, stack) => CustomScrollView(
-          slivers: [
-            _buildAppBar(context, 'Пользователь ${widget.userId}'),
-            SliverFillRemaining(
-              child: ErrorMessageWidget(
-                icon: Icons.heart_broken_rounded,
-                message: _formatErrorMessage(err),
-                subtitle: 'Проверьте подключение к серверу',
-                onAction: () => ref.invalidate(metricsStreamProvider),
-                actionLabel: 'Повторить',
-              ),
-            ),
-          ],
+        // ❌ ОШИБКА - показываем спиннер вместо ошибки
+        error: (err, stack) => const LoadingWidget(
+          message: 'Подключение к серверу...',
         ),
       ),
     );
@@ -160,21 +148,4 @@ class _UserDetailScreenState extends ConsumerState<UserDetailScreen> {
     );
   }
 
-  // 🔧 Форматируем сообщение об ошибке
-  String _formatErrorMessage(Object error) {
-    final message = error.toString();
-    if (message.contains('Connection refused')) {
-      return 'Сервер недоступен';
-    }
-    if (message.contains('timed out')) {
-      return 'Сервер не отвечает';
-    }
-    if (message.contains('Failed host lookup')) {
-      return 'Нет подключения к интернету';
-    }
-    if (message.length > 100) {
-      return '${message.substring(0, 100)}...';
-    }
-    return message;
-  }
 }

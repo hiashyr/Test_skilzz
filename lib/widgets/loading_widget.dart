@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 
 class LoadingWidget extends StatelessWidget {
   final String? message;
-  final bool fullScreen; // Флаг для растягивания на весь экран
+  final bool fullScreen;
 
   const LoadingWidget({
     super.key,
     this.message,
-    this.fullScreen = true, // По умолчанию на весь экран
+    this.fullScreen = true,
   });
 
   const LoadingWidget.compact({
     super.key,
     this.message,
-  }) : fullScreen = false; // Компактная версия
+  }) : fullScreen = false;
 
   @override
   Widget build(BuildContext context) {

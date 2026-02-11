@@ -4,12 +4,10 @@ import '../generated/api.pbgrpc.dart';
 
 /// StreamProvider который накапливает всех пользователей
 final metricsStreamProvider = StreamProvider.autoDispose<List<UserMetric>>((ref) async* {
-  final usersMap = <String, UserMetric>{}; // 🗃️ Храним ВСЕХ пользователей
+  final usersMap = <String, UserMetric>{}; // Мапа со всеми пользователями
   var shouldStop = false;
 
   ref.onDispose(() => shouldStop = true);
-
-  const reconnectDelay = Duration(seconds: 1);
 
   while (!shouldStop) {
     GrpcWebClientChannel? channel;
@@ -23,21 +21,21 @@ final metricsStreamProvider = StreamProvider.autoDispose<List<UserMetric>>((ref)
       await for (final metric in client.getStats(Empty())) {
         if (shouldStop) break;
         
-        // 🔥 КЛЮЧЕВОЕ: Сохраняем или обновляем пользователя в Map
+        // 🔥 Сохраняем или обновляем пользователя в Map
         usersMap[metric.userId] = metric;
         
-        // Отправляем ВСЕХ пользователей
+        // Отправляем всех пользователей
         yield usersMap.values.toList();
       }
       
     } catch (e) {
-      // Ошибка - просто продолжаем цикл
+      // При ошибке подключения выбрасываем исключение, чтобы UI показал состояние ошибки
+      throw Exception('Не удалось подключиться к серверу: $e');
     } finally {
       await channel?.shutdown();
     }
 
     if (shouldStop) break;
-    await Future.delayed(reconnectDelay);
   }
 });
 
@@ -47,7 +45,7 @@ final userByIdProvider = Provider.family.autoDispose<UserMetric?, String>((ref, 
   
   return usersAsync.when(
     data: (usersList) {
-      // 🔍 Ищем пользователя в списке
+      // Ищем пользователя в списке
       try {
         return usersList.firstWhere((u) => u.userId == userId);
       } catch (e) {
