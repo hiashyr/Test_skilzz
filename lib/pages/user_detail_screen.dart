@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/metrics_riverpod.dart';
-import '../generated/api.pbgrpc.dart';
 import '../widgets/loading_widget.dart';
 import '../widgets/error_message_widget.dart';
 import '../widgets/heart_rate_display.dart';
@@ -32,172 +31,150 @@ class _UserDetailScreenState extends ConsumerState<UserDetailScreen> {
     final usersAsync = ref.watch(metricsStreamProvider);
 
     return Scaffold(
-      body: Builder(
-        builder: (context) {
-          return usersAsync.when(
-            data: (streamState) {
-              // При переподключении показываем спиннер
-              if (streamState.isReconnecting) {
-                return const LoadingWidget(message: 'Ожидание сервера...');
-              }
+      body: usersAsync.when(
+        // ✅ ЕСТЬ ДАННЫЕ - показываем пользователя
+        data: (usersList) {
+          // Ищем нужного пользователя
+          final user = usersList.firstWhere(
+            (u) => u.userId == widget.userId
+          );
 
-              final usersList = streamState.data ?? [];
-              UserMetric? user;
-              for (final u in usersList) {
-                if (u.userId == widget.userId) {
-                  user = u;
-                  break;
-                }
-              }
-
-              if (user == null) {
-                return CustomScrollView(
-                  slivers: [
-                    SliverAppBar(
-                      leading: IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () => context.go('/'),
-                      ),
-                      title: Text('Пользователь ${widget.userId}'),
-                      actions: const [
-                        ThemeToggleButton(),
-                      ],
-                      pinned: true,
-                      floating: false,
-                      snap: false,
-                      forceMaterialTransparency: false,
-                      surfaceTintColor: Colors.transparent,
-                      backgroundColor: theme.appBarTheme.backgroundColor,
-                      elevation: theme.appBarTheme.elevation,
-                    ),
-                    SliverFillRemaining(
-                      child: ErrorMessageWidget(
-                        icon: Icons.person_off,
-                        message: 'Пользователь не найден',
-                        onAction: () => context.go('/'),
-                        actionLabel: 'Вернуться на главную',
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              final userNonNull = user;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  setState(() {
-                    _previousHeartRate = userNonNull.heartRate;
-                  });
-                }
+          // ✅ Пользователь найден - сохраняем предыдущее значение пульса
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _previousHeartRate = user.heartRate;
               });
+            }
+          });
 
-              return CustomScrollView(
-                slivers: [
-                  SliverAppBar(
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => context.go('/'),
-                    ),
-                    title: Text(userNonNull.userName.isNotEmpty ? userNonNull.userName : 'Пользователь ${widget.userId}'),
-                    actions: const [
-                      ThemeToggleButton(),
-                    ],
-                    pinned: true,
-                    floating: false,
-                    snap: false,
-                    forceMaterialTransparency: false,
-                    surfaceTintColor: Colors.transparent,
-                    backgroundColor: theme.appBarTheme.backgroundColor,
-                    elevation: theme.appBarTheme.elevation,
-                  ),
-                  SliverToBoxAdapter(
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const SizedBox(height: 40),
-                              // Анимированное пульсирующее сердце
-                              SizedBox(
-                                width: 250,
-                                height: 250,
-                                child: Center(
-                                  child: PulsingHeart(
-                                    heartRate: user.heartRate,
-                                    previousHeartRate: _previousHeartRate,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 40),
-                              // Отображение пульса
-                              HeartRateDisplay(
-                                heartRate: user.heartRate,
-                              ),
-                              const SizedBox(height: 60),
-                              // Кардиограмма пульса
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.surface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: theme.colorScheme.outline),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Кардиограмма',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.colorScheme.onSurface,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    HeartRateChart(
-                                      heartRate: user.heartRate,
-                                      previousHeartRate: _previousHeartRate,
-                                      lineColor: HeartRateColors.getColor(user.heartRate),
-                                      height: 150,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+          // Показываем данные пользователя
+          return CustomScrollView(
+            slivers: [
+              _buildAppBar(
+                context, 
+                user.userName.isNotEmpty ? user.userName : 'Пользователь ${widget.userId}'
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 40),
+                      // Анимированное пульсирующее сердце
+                      SizedBox(
+                        width: 250,
+                        height: 250,
+                        child: Center(
+                          child: PulsingHeart(
+                            heartRate: user.heartRate,
+                            previousHeartRate: _previousHeartRate,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 40),
+                      // Отображение пульса
+                      HeartRateDisplay(
+                        heartRate: user.heartRate,
+                      ),
+                      const SizedBox(height: 60),
+                      // Кардиограмма пульса
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: theme.colorScheme.outline),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Кардиограмма',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            HeartRateChart(
+                              heartRate: user.heartRate,
+                              previousHeartRate: _previousHeartRate,
+                              lineColor: HeartRateColors.getColor(user.heartRate),
+                              height: 150,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              );
-            },
-            loading: () => const LoadingWidget(message: 'Ожидание данных...'),
-            error: (err, stack) => CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => context.go('/'),
-                  ),
-                  title: Text('Пользователь ${widget.userId}'),
-                  actions: const [ThemeToggleButton()],
                 ),
-                SliverFillRemaining(
-                  child: ErrorMessageWidget(
-                    icon: Icons.heart_broken_rounded,
-                    message: err.toString(),
-                    subtitle: 'Попробуйте перезагрузить страницу.',
-                    onAction: () => ref.refresh(metricsStreamProvider),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           );
         },
+
+        // 🔄 ЗАГРУЗКА - используем LoadingWidget
+        loading: () => const LoadingWidget(
+          message: 'Подключение к серверу...',
+        ),
+
+        // ❌ ОШИБКА - показываем сообщение и кнопку повтора
+        error: (err, stack) => CustomScrollView(
+          slivers: [
+            _buildAppBar(context, 'Пользователь ${widget.userId}'),
+            SliverFillRemaining(
+              child: ErrorMessageWidget(
+                icon: Icons.heart_broken_rounded,
+                message: _formatErrorMessage(err),
+                subtitle: 'Проверьте подключение к серверу',
+                onAction: () => ref.invalidate(metricsStreamProvider),
+                actionLabel: 'Повторить',
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  // 🔧 Выносим AppBar в отдельный метод для переиспользования
+  Widget _buildAppBar(BuildContext context, String title) {
+    return SliverAppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => context.go('/'),
+      ),
+      title: Text(title),
+      actions: const [
+        ThemeToggleButton(),
+      ],
+      pinned: true,
+      floating: false,
+      snap: false,
+      forceMaterialTransparency: false,
+      surfaceTintColor: Colors.transparent,
+      backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+      elevation: Theme.of(context).appBarTheme.elevation,
+    );
+  }
+
+  // 🔧 Форматируем сообщение об ошибке
+  String _formatErrorMessage(Object error) {
+    final message = error.toString();
+    if (message.contains('Connection refused')) {
+      return 'Сервер недоступен';
+    }
+    if (message.contains('timed out')) {
+      return 'Сервер не отвечает';
+    }
+    if (message.contains('Failed host lookup')) {
+      return 'Нет подключения к интернету';
+    }
+    if (message.length > 100) {
+      return '${message.substring(0, 100)}...';
+    }
+    return message;
   }
 }

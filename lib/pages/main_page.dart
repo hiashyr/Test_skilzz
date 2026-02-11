@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:test_skilzz/generated/api.pb.dart';
 import '../providers/metrics_riverpod.dart';
 import '../widgets/user_card.dart';
 import '../widgets/loading_widget.dart';
@@ -22,43 +23,56 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       body: usersAsync.when(
-        data: (streamState) {
-          // Если идёт переподключение — показываем спиннер
-          if (streamState.isReconnecting) {
-            return const LoadingWidget(message: 'Ожидание сервера...');
-          }
-
-          final usersList = streamState.data ?? [];
-
+        // ✅ ЕСТЬ ДАННЫЕ - показываем ВСЕХ пользователей
+        data: (usersList) {
           if (usersList.isEmpty) {
-            return const Center(child: Text('Нет данных о пользователях'));
+            return const Center(
+              child: Text('Нет данных о пользователях'),
+            );
           }
 
-          return Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: usersList.length,
-                  itemBuilder: (context, index) {
-                    final user = usersList[index];
-                    return UserCard(
-                      user: user,
-                      onTap: () => context.go('/user/${user.userId}'),
-                    );
-                  },
-                ),
-              ),
-            ],
+          // 🔥 Сортируем пользователей для стабильного отображения
+          final sortedUsers = List<UserMetric>.from(usersList)
+            ..sort((a, b) => a.userName.compareTo(b.userName));
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: sortedUsers.length,
+            itemBuilder: (context, index) {
+              final user = sortedUsers[index];
+              return UserCard(
+                user: user,
+                onTap: () => context.go('/user/${user.userId}'),
+              );
+            },
           );
         },
-        loading: () => const LoadingWidget(message: 'Ожидание данных...'),
+        
+        // 🔄 ЗАГРУЗКА
+        loading: () => const LoadingWidget(
+          message: 'Подключение к серверу...',
+        ),
+        
+        // ❌ ОШИБКА
         error: (err, stack) => ErrorMessageWidget(
           useBrokenHeart: true,
-          message: err.toString(),
-          subtitle: 'Попробуйте перезагрузить страницу.',
+          message: _formatErrorMessage(err),
+          subtitle: 'Проверьте подключение к серверу',
+          onAction: () => ref.invalidate(metricsStreamProvider),
+          actionLabel: 'Повторить',
         ),
       ),
     );
+  }
+
+  String _formatErrorMessage(Object error) {
+    final message = error.toString();
+    if (message.contains('Connection refused')) {
+      return 'Сервер недоступен';
+    }
+    if (message.contains('timed out')) {
+      return 'Сервер не отвечает';
+    }
+    return message;
   }
 }
