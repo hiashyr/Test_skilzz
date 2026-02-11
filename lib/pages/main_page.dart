@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/metrics_provider.dart';
+import '../providers/metrics_riverpod.dart';
 import '../widgets/user_card.dart';
 import '../widgets/loading_widget.dart';
 import '../widgets/error_message_widget.dart';
 import '../widgets/theme_toggle_button.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metricsProvider = ref.watch(metricsNotifierProvider);
+
+    final connectionStatus = metricsProvider.connectionStatus;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Монитор сердечного ритма'),
@@ -19,11 +24,8 @@ class DashboardScreen extends StatelessWidget {
           ThemeToggleButton(),
         ],
       ),
-      body: Consumer<MetricsProvider>(
-        builder: (context, metricsProvider, child) {
-          final connectionStatus = metricsProvider.connectionStatus;
-          
-          // Если есть ошибка подключения, показываем сообщение
+      body: Builder(
+        builder: (_) {
           if (connectionStatus == ConnectionStatus.error &&
               metricsProvider.errorMessage != null) {
             return ErrorMessageWidget(
@@ -35,10 +37,8 @@ class DashboardScreen extends StatelessWidget {
                   : null,
             );
           }
-          
-          // Если подключаемся или нет данных
-          if (connectionStatus == ConnectionStatus.connecting || 
-              !metricsProvider.hasData) {
+
+          if (connectionStatus == ConnectionStatus.connecting || !metricsProvider.hasData) {
             return const LoadingWidget(
               message: 'Ожидание данных...',
             );
@@ -48,7 +48,6 @@ class DashboardScreen extends StatelessWidget {
 
           return Column(
             children: [
-              // Список пользователей
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.all(16),

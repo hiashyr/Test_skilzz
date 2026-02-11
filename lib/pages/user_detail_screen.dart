@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/metrics_provider.dart';
+import '../providers/metrics_riverpod.dart';
 import '../widgets/error_message_widget.dart';
 import '../widgets/heart_rate_display.dart';
 import '../widgets/pulsing_heart.dart';
@@ -9,28 +10,29 @@ import '../widgets/theme_toggle_button.dart';
 import '../widgets/heart_rate_chart.dart';
 import '../utils/heart_rate_colors.dart';
 
-class UserDetailScreen extends StatefulWidget {
+class UserDetailScreen extends ConsumerStatefulWidget {
   final String userId;
 
-  const UserDetailScreen({
+  const UserDetailScreen({ 
     super.key,
     required this.userId,
   });
 
   @override
-  State<UserDetailScreen> createState() => _UserDetailScreenState();
+  ConsumerState<UserDetailScreen> createState() => _UserDetailScreenState();
 }
 
-class _UserDetailScreenState extends State<UserDetailScreen> {
+class _UserDetailScreenState extends ConsumerState<UserDetailScreen> {
   int? _previousHeartRate;
 
   @override
   Widget build(BuildContext context) {
+    final metricsProvider = ref.watch(metricsNotifierProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: Consumer<MetricsProvider>(
-        builder: (context, metricsProvider, child) {
+      body: Builder(
+        builder: (context) {
           final user = metricsProvider.getUser(widget.userId);
           final connectionStatus = metricsProvider.connectionStatus;
 
@@ -63,7 +65,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                     reconnectCountdown: metricsProvider.reconnectCountdown > 0
                         ? metricsProvider.reconnectCountdown
                         : null,
-                    onAction: () => metricsProvider.startListening(),
+                    onAction: () => ref.read(metricsNotifierProvider.notifier).startListening(),
                   ),
                 ),
               ],
