@@ -1,42 +1,48 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grpc/grpc_web.dart';
 import '../generated/api.pbgrpc.dart';
 
 /// StreamProvider который накапливает всех пользователей
-final metricsStreamProvider = StreamProvider.autoDispose<List<UserMetric>>((ref) async* {
+final metricsStreamProvider = StreamProvider.autoDispose<List<UserMetric>>((ref) {
+  final controller = StreamController<List<UserMetric>>();
   final usersMap = <String, UserMetric>{}; // Мапа со всеми пользователями
-  var shouldStop = false;
 
-  ref.onDispose(() => shouldStop = true);
+  ref.onDispose(
+    () async {
+      await controller.close();
+    },
+  );
 
-  while (!shouldStop) {
-    GrpcWebClientChannel? channel;
-    MetricsClient? client;
-    
-    try {
-      channel = GrpcWebClientChannel.xhr(Uri.parse('https://localhost:8143'));
-      client = MetricsClient(channel);
+  () async {
+    while (!controller.isClosed) {
+      GrpcWebClientChannel? channel;
 
-      // Слушаем поток
-      await for (final metric in client.getStats(Empty())) {
-        if (shouldStop) break;
-        
-        // 🔥 Сохраняем или обновляем пользователя в Map
-        usersMap[metric.userId] = metric;
-        
-        // Отправляем всех пользователей
-        yield usersMap.values.toList();
+      try{
+        channel = GrpcWebClientChannel.xhr(
+          Uri.parse('https://localhost:8143'),
+        );
+        final client = MetricsClient(channel);
+
+        await for (final metric in client.getStats(Empty())) {
+          if (controller.isClosed) break;
+
+       usersMap[metric.userId] = metric;
+          controller.add(usersMap.values.toList());
+        }
+      } catch (e, s) {
+        if (!controller.isClosed) {
+          controller.addError('Не удалось подключиться к серверу: $e', s);
+          await Future.delayed(const Duration(seconds: 3));
+        }
+      } finally {
+        await channel?.shutdown();
       }
-      
-    } catch (e) {
-      // При ошибке подключения выбрасываем исключение, чтобы UI показал состояние ошибки
-      throw Exception('Не удалось подключиться к серверу: $e');
-    } finally {
-      await channel?.shutdown();
     }
+  }();
 
-    if (shouldStop) break;
-  }
+  return controller.stream;
 });
 
 /// Провайдер для получения конкретного пользователя по ID
@@ -53,6 +59,10 @@ final userByIdProvider = Provider.family.autoDispose<UserMetric?, String>((ref, 
       }
     },
     loading: () => null,
-    error: (_, _) => null,
+    error: (error, stackTrace) {
+      debugPrint('Error loading user $userId: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    }
   );
 });
