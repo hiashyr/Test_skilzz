@@ -1,22 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ThemeProvider extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.dark;
+// Создаем Notifier класс
+class ThemeNotifier extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() {
+    // Начальное состояние
+    return ThemeMode.dark;
+  }
 
-  ThemeMode get themeMode => _themeMode;
-  bool get isDarkMode => _themeMode == ThemeMode.dark;
+  // Геттер
+  bool get isDarkMode => state == ThemeMode.dark;
 
+  // Методы изменения состояния
   void toggleTheme() {
-    _themeMode = _themeMode == ThemeMode.light 
+    state = state == ThemeMode.light 
         ? ThemeMode.dark 
         : ThemeMode.light;
-    notifyListeners();
   }
 
   void setTheme(ThemeMode mode) {
-    if (_themeMode != mode) {
-      _themeMode = mode;
-      notifyListeners();
+    if (state != mode) {
+      state = mode;
     }
   }
 }
+
+// Создаем провайдер
+final themeProvider = NotifierProvider<ThemeNotifier, ThemeMode>(() {
+  return ThemeNotifier();
+});
+
+// геттер для isDarkMode
+final isDarkModeProvider = Provider<bool>((ref) {
+  return ref.watch(themeProvider) == ThemeMode.dark;
+});

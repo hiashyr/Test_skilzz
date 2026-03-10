@@ -22,7 +22,7 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       body: usersAsync.when(
-        // ✅ ЕСТЬ ДАННЫЕ - показываем ВСЕХ пользователей
+        // Проверяем на пустоту: если данные есть, то показываем
         data: (usersList) {
           if (usersList.isEmpty) {
             return const Center(
@@ -30,7 +30,7 @@ class DashboardScreen extends ConsumerWidget {
             );
           }
 
-          // 🔥 Сортируем пользователей для стабильного отображения
+          // Сортируем пользователей для стабильного отображения
           final sortedUsers = List<UserMetric>.from(usersList)
             ..sort((a, b) => a.userName.compareTo(b.userName));
 
@@ -47,12 +47,12 @@ class DashboardScreen extends ConsumerWidget {
           );
         },
 
-        // 🔄 ЗАГРУЗКА
+        // Заугрузка
         loading: () => const LoadingWidget(
           message: 'Подключение к серверу...',
         ),
 
-        // ❌ ОШИБКА - показываем спиннер вместо ошибки
+        // Показываем спиннер вместо ошибки
         error: (err, stack) => const LoadingWidget(
           message: 'Подключение к серверу...',
         ),

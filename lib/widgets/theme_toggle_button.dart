@@ -1,22 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/theme_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/theme_provider.dart'; // твой новый файл с провайдерами
 
-class ThemeToggleButton extends StatelessWidget {
+class ThemeToggleButton extends ConsumerWidget {
   const ThemeToggleButton({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Следим за изменением темы через провайдер
+    final isDarkMode = ref.watch(isDarkModeProvider);
     
     return IconButton(
       icon: Icon(
-        themeProvider.isDarkMode 
+        isDarkMode 
             ? Icons.light_mode 
             : Icons.dark_mode,
       ),
-      onPressed: () => themeProvider.toggleTheme(),
-      tooltip: themeProvider.isDarkMode 
+      onPressed: () {
+        // Получаем notifier и вызываем метод
+        ref.read(themeProvider.notifier).toggleTheme();
+      },
+      tooltip: isDarkMode 
           ? 'Переключить на светлую тему' 
           : 'Переключить на темную тему',
     );
